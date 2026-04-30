@@ -87,3 +87,12 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Return and clear the last key pressed (non-blocking)
+addr_t sys_lastkey(void)
+{
+  extern volatile int last_key;
+  int k = last_key;
+  last_key = -1;
+  return k;
+}

@@ -123,6 +123,9 @@ extern addr_t sys_wait(void);
 extern addr_t sys_write(void);
 extern addr_t sys_uptime(void);
 
+// New syscall for real-time keyboard input
+addr_t sys_lastkey(void);
+
 // PAGEBREAK!
 static addr_t (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -146,6 +149,7 @@ static addr_t (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_lastkey] sys_lastkey,
 };
 
 void

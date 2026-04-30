@@ -1,7 +1,7 @@
 KERNOBJS = \
 	bio.o console.o exec.o file.o fs.o ide.o ioapic.o kalloc.o kbd.o lapic.o \
   log.o main.o mp.o pipe.o proc.o sleeplock.o spinlock.o string.o swtch.o \
-  syscall.o sysfile.o sysproc.o trapasm.o trap.o uart.o vectors.o vm.o \
+	syscall.o sysfile.o sysproc.o trapasm.o trap.o uart.o vectors.o vm.o vga.o \
 #
 
 UNAME_S := $(shell uname -s)
@@ -106,6 +106,11 @@ _forktest: forktest.o $(ULIB) user.ld
 	# in order to be able to max out the proc table.
 	$(LD) $(LDFLAGS) -n -N -T user.ld -e main -Ttext 0x1000 -o $@ $< ulib.o usys.o
 	$(OBJDUMP) -S _forktest > forktest.asm
+
+_pacman: pacman.o $(ULIB) vga.o user.ld
+	$(LD) $(LDFLAGS) -n -N -T user.ld -e main -Ttext 0x1000 -o $@ pacman.o ulib.o usys.o printf.o umalloc.o vga.o
+	$(OBJDUMP) -S $@ > $*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' | sort > $*.sym
 
 mkfs: mkfs.c fs.h
 	gcc -Werror -Wall -o mkfs mkfs.c

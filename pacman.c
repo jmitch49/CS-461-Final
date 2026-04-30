@@ -1,21 +1,24 @@
-// Pac-Man for xv6 - ASCII console version
+// Pac-Man for xv6 - VGA Graphics Version
 
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
+#include "vga.h"
 
 // Game constants
-#define WIDTH 40
-#define HEIGHT 20
+#define WIDTH 320
+#define HEIGHT 200
 #define MAX_GHOSTS 4
 
-// Game symbols
-#define PACMAN 'C'
-#define GHOST 'G'
-#define DOT '.'
-#define WALL '#'
-#define EMPTY ' '
-#define POWER 'O'
+// Game symbols (VGA colors)
+#define PACMAN_COLOR  0x90  // Yellow
+#define GHOST1_COLOR  0x04  // Red
+#define GHOST2_COLOR  0x02  // Green  
+#define GHOST3_COLOR  0x01  // Blue
+#define DOT_COLOR    0xAC  // Light yellow
+#define WALL_COLOR  0x18  // Dark blue
+#define EMPTY_COLOR 0x00  // Black
+#define POWER_COLOR 0xA8  // Orange
 
 // Directions
 #define UP 0
@@ -25,82 +28,63 @@
 
 // Game state
 struct game {
-  char board[HEIGHT][WIDTH];
-  int px, py;        // Pac-Man position
-  int pdir;          // Pac-Man direction
+  int px, py;
+  int pdir;
   int score;
   int lives;
-  int ghosts[MAX_GHOSTS][3];  // x, y, direction
+  int ghosts[MAX_GHOSTS][3];
   int num_ghosts;
   int game_over;
   int win;
 };
 
-// Simple map - 1 = wall, 0 = dot
-char level1[HEIGHT][WIDTH] = {
-  "########################################",
-  "#......................................#",
-  "#......................................#",
-  "#..####..#####....#####....####..####..#",
-  "#..#..................................#",
-  "#..#....#####....#####....#####..#....#",
-  "#......#....#..#....#....#....#..#....#",
-  "######.#....#..#....#....#....#.......#",
-  "#......#....#..#....#....#....#.......#",
-  "#..####....#..#....#....#....#..####..#",
-  "#..........#............#.............#",
-  "#..####....#..########..#..####..####..#",
-  "#..#..................................#",
-  "#..#....#####....#####....#####..#....#",
-  "#......#....#..#....#....#....#..#....#",
-  "######.#....#..#....#....#....#.......#",
-  "#......................................#",
-  "#......................................#",
-  "########################################"
+// Simple maze layout (scaled for VGA)
+static int maze[20][28] = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1},
+  {1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+  {1,0,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1},
+  {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1},
+  {1,0,1,1,1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1},
+  {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1},
+  {1,0,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 };
-
-void
-clear_screen(void)
-{
-  printf(1, "\033[2J");
-  printf(1, "\033[H");
-}
 
 void
 init_game(struct game *g)
 {
-  int i, j;
-  
   g->score = 0;
   g->lives = 3;
   g->game_over = 0;
   g->win = 0;
   g->num_ghosts = 3;
   
-  // Initialize board from level
-  for(i = 0; i < HEIGHT; i++){
-    for(j = 0; j < WIDTH; j++){
-      g->board[i][j] = level1[i][j];
-    }
-  }
-  
-  // Pac-Man starting position
-  g->px = 20;
-  g->py = 15;
+  g->px = 14;
+  g->py = 14;
   g->pdir = RIGHT;
   
-  // Ghosts starting positions
-  g->ghosts[0][0] = 19; g->ghosts[0][1] = 10; g->ghosts[0][2] = LEFT;
-  g->ghosts[1][0] = 20; g->ghosts[1][1] = 10; g->ghosts[1][2] = RIGHT;
-  g->ghosts[2][0] = 19; g->ghosts[2][1] = 11; g->ghosts[2][2] = UP;
+  g->ghosts[0][0] = 12; g->ghosts[0][1] = 8; g->ghosts[0][2] = LEFT;
+  g->ghosts[1][0] = 14; g->ghosts[1][1] = 8; g->ghosts[1][2] = RIGHT;
+  g->ghosts[2][0] = 13; g->ghosts[2][1] = 9; g->ghosts[2][2] = UP;
 }
 
 int
 can_move(struct game *g, int x, int y)
 {
-  if(x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT)
+  if(x < 0 || x >= 28 || y < 0 || y >= 19)
     return 0;
-  return g->board[y][x] != WALL;
+  return maze[y][x] == 0;
 }
 
 void
@@ -118,15 +102,7 @@ move_pacman(struct game *g)
   if(can_move(g, nx, ny)){
     g->px = nx;
     g->py = ny;
-    
-    // Eat dot
-    if(g->board[ny][nx] == DOT){
-      g->board[ny][nx] = EMPTY;
-      g->score += 10;
-    } else if(g->board[ny][nx] == POWER){
-      g->board[ny][nx] = EMPTY;
-      g->score += 50;
-    }
+    g->score += 10;
   }
 }
 
@@ -134,7 +110,7 @@ move_pacman(struct game *g)
 static int seed = 12345;
 
 int
-rand(void)
+myrand(void)
 {
   seed = seed * 1103515245 + 12345;
   return (seed >> 16) & 0x7FFF;
@@ -147,9 +123,8 @@ move_ghost(struct game *g, int idx)
   int dirs[] = {0, 1, 2, 3};
   int i, newdir;
   
-  // Simple random movement
   for(i = 0; i < 4; i++){
-    newdir = dirs[rand() % 4];
+    newdir = dirs[myrand() % 4];
     int nx = gh[0], ny = gh[1];
     
     switch(newdir){
@@ -172,7 +147,6 @@ int
 check_collision(struct game *g)
 {
   int i;
-  
   for(i = 0; i < g->num_ghosts; i++){
     if(g->px == g->ghosts[i][0] && g->py == g->ghosts[i][1]){
       return 1;
@@ -185,10 +159,9 @@ int
 check_win(struct game *g)
 {
   int i, j;
-  
-  for(i = 0; i < HEIGHT; i++){
-    for(j = 0; j < WIDTH; j++){
-      if(g->board[i][j] == DOT || g->board[i][j] == POWER)
+  for(i = 0; i < 19; i++){
+    for(j = 0; j < 28; j++){
+      if(maze[i][j] == 0)
         return 0;
     }
   }
@@ -198,56 +171,45 @@ check_win(struct game *g)
 void
 draw_game(struct game *g)
 {
-  int i, j;
-  char display[HEIGHT][WIDTH];
+  int x, y;
+  int cellW = WIDTH / 28;
+  int cellH = HEIGHT / 19;
   
-  // Copy board to display
-  for(i = 0; i < HEIGHT; i++){
-    for(j = 0; j < WIDTH; j++){
-      display[i][j] = g->board[i][j];
+  // Clear screen
+  vgaClear(EMPTY_COLOR);
+  
+  // Draw maze
+  for(y = 0; y < 19; y++){
+    for(x = 0; x < 28; x++){
+      if(maze[y][x] == 1){
+        vgaFillRect(x * cellW, y * cellH, cellW, cellH, WALL_COLOR);
+      } else {
+        // Draw dot
+        vgaFillRect(x * cellW + cellW/2 - 1, y * cellH + cellH/2 - 1, 2, 2, DOT_COLOR);
+      }
     }
   }
   
-  // Draw Pac-Man
-  display[g->py][g->px] = PACMAN;
+  // Draw Pac-Man (circle)
+  int pcx = g->px * cellW + cellW/2;
+  int pcy = g->py * cellH + cellH/2;
+  int radius = (cellW < cellH ? cellW : cellH) / 2 - 2;
+  vgaDrawCircle(pcx, pcy, radius, PACMAN_COLOR);
   
   // Draw ghosts
+  int i;
   for(i = 0; i < g->num_ghosts; i++){
-    display[g->ghosts[i][1]][g->ghosts[i][0]] = GHOST;
-  }
-  
-  // Clear and draw
-  printf(1, "\033[2J");
-  printf(1, "\033[H");
-  printf(1, "=== PAC-MAN xv6 ===\n");
-  printf(1, "Score: %d  Lives: %d\n", g->score, g->lives);
-  printf(1, "Controls: w=up, s=down, a=left, d=right, q=quit\n\n");
-  
-  for(i = 0; i < HEIGHT; i++){
-    for(j = 0; j < WIDTH; j++){
-      printf(1, "%c", display[i][j]);
-    }
-    printf(1, "\n");
-  }
-  
-  if(g->game_over){
-    printf(1, "\nGAME OVER! Final Score: %d\n", g->score);
-  } else if(g->win){
-    printf(1, "\nYOU WIN! Final Score: %d\n", g->score);
+    int gx = g->ghosts[i][0] * cellW + cellW/2;
+    int gy = g->ghosts[i][1] * cellH + cellH/2;
+    uchar color = (i == 0) ? GHOST1_COLOR : (i == 1) ? GHOST2_COLOR : GHOST3_COLOR;
+    vgaDrawCircle(gx, gy, radius - 1, color);
   }
 }
 
 int
-read_key(void)
+poll_key(void)
 {
-  char c;
-  int n;
-  
-  n = read(0, &c, 1);
-  if(n > 0){
-    return c;
-  }
-  return -1;
+  return lastkey();
 }
 
 void
@@ -256,44 +218,43 @@ game_loop(struct game *g)
   int running = 1;
   int key;
   
+  // Switch to graphics mode
+  vgaMode13();
+  
   while(running){
-    // Draw the game
     draw_game(g);
     
-    // Check win condition
     if(check_win(g)){
       g->win = 1;
       g->game_over = 1;
-      draw_game(g);
       break;
     }
     
-    // Check collision with ghosts
     if(check_collision(g)){
       g->lives--;
       if(g->lives <= 0){
         g->game_over = 1;
-        draw_game(g);
         break;
       }
-      // Reset positions
-      g->px = 20;
-      g->py = 15;
-      g->ghosts[0][0] = 19; g->ghosts[0][1] = 10;
-      g->ghosts[1][0] = 20; g->ghosts[1][1] = 10;
-      g->ghosts[2][0] = 19; g->ghosts[2][1] = 11;
+      g->px = 14;
+      g->py = 14;
+      g->ghosts[0][0] = 12; g->ghosts[0][1] = 8;
+      g->ghosts[1][0] = 14; g->ghosts[1][1] = 8;
+      g->ghosts[2][0] = 13; g->ghosts[2][1] = 9;
     }
     
-    // Read keyboard input (blocking)
-    printf(1, "\nMove (w/a/s/d or q): ");
-    key = read_key();
+    // Wait for key
+    key = -1;
+    while(key == -1){
+      key = poll_key();
+      sleep(1);
+    }
     
     if(key == 'q' || key == 'Q'){
       running = 0;
       break;
     }
     
-    // Update direction based on input
     switch(key){
       case 'w': case 'W':
         g->pdir = UP;
@@ -307,19 +268,18 @@ game_loop(struct game *g)
       case 'd': case 'D':
         g->pdir = RIGHT;
         break;
+      default:
+        continue;
     }
     
-    // Move Pac-Man
     move_pacman(g);
-    
-    // Move ghosts
     move_ghost(g, 0);
     move_ghost(g, 1);
     move_ghost(g, 2);
-    
-    // Small delay to make game playable
-    sleep(1);
   }
+  
+  // Switch back to text mode
+  vgaMode3();
 }
 
 int
@@ -327,16 +287,21 @@ main(int argc, char *argv[])
 {
   struct game g;
   
-  printf(1, "Starting Pac-Man...\n");
+  printf(1, "Starting Pac-Man (VGA Graphics)...\n");
   printf(1, "Use w/a/s/d to move, q to quit\n");
   printf(1, "Press Enter to start...\n");
   
-  // Wait for enter
   char buf[16];
   gets(buf, 16);
   
   init_game(&g);
   game_loop(&g);
+  
+  if(g.game_over){
+    printf(1, "GAME OVER! Final Score: %d\n", g.score);
+  } else if(g.win){
+    printf(1, "YOU WIN! Final Score: %d\n", g.score);
+  }
   
   printf(1, "Thanks for playing!\n");
   exit();

@@ -26,6 +26,9 @@ char* sbrk(uint64);
 int sleep(int);
 int uptime(void);
 
+// Real-time keyboard input syscall
+int lastkey(void);
+
 // ulib.c
 int stat(char*, struct stat*);
 char* strcpy(char*, char*);
