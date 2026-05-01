@@ -271,28 +271,65 @@ game_loop(struct game *g)
         continue;
     }
     
-    move_pacman(g);
-    if(check_collision(g)){ //checks if the cross paths
-      goto hit;
-    }
-    move_ghost(g, 0);
-    move_ghost(g, 1);
-    move_ghost(g, 2);
+    // move_pacman(g);
+    // move_ghost(g, 0);
+    // move_ghost(g, 1);
+    // move_ghost(g, 2);
 
-    
+    int hit  = 0;
+    move_pacman(g);
+
+    //check before pacman moves
     if(check_collision(g)){
-      hit:
-        g->lives--;
-        if(g->lives <= 0){
-          g->game_over = 1;
-          break;
-        }
+      hit = 1;
+    }
+    else {
+      move_ghost(g, 0);
+      move_ghost(g, 1);
+      move_ghost(g, 2);
+
+      // Check collision AFTER ghosts move
+      if(check_collision(g)){
+        hit = 1;
+      }
+    }
+
+    if(hit){
+      g->lives--;
+
+      //handel life lost once
+      if(g->lives <= 0){
+        g->game_over = 1;
+        break;
+      }
+
+      //reset positions after life lost
       g->px = 14;
       g->py = 13;
+      
       g->ghosts[0][0] = 12; g->ghosts[0][1] = 8;
       g->ghosts[1][0] = 14; g->ghosts[1][1] = 8;
       g->ghosts[2][0] = 13; g->ghosts[2][1] = 9;
+
     }
+
+
+    
+    // if(check_collision(g)){
+     
+    //   g->lives--;
+      
+    //   if(g->lives <= 0){
+    //      g->game_over = 1;
+    //     break;
+    //   }
+
+    //   g->px = 14;
+    //   g->py = 13;
+    //   g->ghosts[0][0] = 12; g->ghosts[0][1] = 8;
+    //   g->ghosts[1][0] = 14; g->ghosts[1][1] = 8;
+    //   g->ghosts[2][0] = 13; g->ghosts[2][1] = 9;
+    // }
     
   }
   
