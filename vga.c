@@ -343,3 +343,30 @@ vgaDrawCircle(int cx, int cy, int r, uchar color)
     }
   }
 }
+
+// Kernel-mode VGA functions for syscalls
+// These run in kernel context and can access VGA memory directly
+
+int
+vgaMemTest(void)
+{
+  volatile uchar *vga = (uchar *)P2V(0xA0000);
+  // Try to write and read a test value
+  uchar orig = vga[0];
+  vga[0] = 0xAA;
+  uchar test = vga[0];
+  vga[0] = orig;
+  return (test == 0xAA) ? 1 : 0;
+}
+
+void
+vgaKernelFillRect(int x, int y, int w, int h, uchar color)
+{
+  vgaFillRect(x, y, w, h, color);
+}
+
+void
+vgaKernelDrawCircle(int cx, int cy, int r, uchar color)
+{
+  vgaDrawCircle(cx, cy, r, color);
+}

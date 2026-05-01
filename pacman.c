@@ -1,9 +1,9 @@
-// Pac-Man for xv6 - VGA Graphics Version
+// Pac-Man for xv6 - VGA Graphics Version (syscall-based)
 
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-#include "vga.h"
+// Use syscall-based VGA (no direct hardware access)
 
 // Game constants
 #define WIDTH 320
@@ -28,11 +28,11 @@
 
 // Game state
 struct game {
-  int px, py;
-  int pdir;
+  int px, py; //pacman position
+  int pdir; //pacman direction
   int score;
   int lives;
-  int ghosts[MAX_GHOSTS][3];
+  int ghosts[MAX_GHOSTS][3]; //x,y positions
   int num_ghosts;
   int game_over;
   int win;
@@ -71,7 +71,7 @@ init_game(struct game *g)
   g->num_ghosts = 3;
   
   g->px = 14;
-  g->py = 14;
+  g->py = 13;
   g->pdir = RIGHT;
   
   g->ghosts[0][0] = 12; g->ghosts[0][1] = 8; g->ghosts[0][2] = LEFT;
@@ -82,9 +82,9 @@ init_game(struct game *g)
 int
 can_move(struct game *g, int x, int y)
 {
-  if(x < 0 || x >= 28 || y < 0 || y >= 19)
+  if(x < 0 || x >= 28 || y < 0 || y >= 20)
     return 0;
-  return maze[y][x] == 0;
+  return maze[y][x] != 1;
 }
 
 void
@@ -102,7 +102,13 @@ move_pacman(struct game *g)
   if(can_move(g, nx, ny)){
     g->px = nx;
     g->py = ny;
-    g->score += 10;
+    // g->score += 10;
+
+    //Eat pellet
+    if(maze[ny][nx] == 0){
+      maze[ny][nx] = 2;   //mark as eaten
+      g->score += 10;
+    }
   }
 }
 
@@ -175,17 +181,19 @@ draw_game(struct game *g)
   int cellW = WIDTH / 28;
   int cellH = HEIGHT / 19;
   
-  // Clear screen
-  vgaClear(EMPTY_COLOR);
+  // Clear screen via syscall
+  vgafill(0, 0, 320, 200, EMPTY_COLOR);
   
   // Draw maze
   for(y = 0; y < 19; y++){
     for(x = 0; x < 28; x++){
       if(maze[y][x] == 1){
-        vgaFillRect(x * cellW, y * cellH, cellW, cellH, WALL_COLOR);
-      } else {
-        // Draw dot
-        vgaFillRect(x * cellW + cellW/2 - 1, y * cellH + cellH/2 - 1, 2, 2, DOT_COLOR);
+        vgafill(x * cellW, y * cellH, cellW, cellH, WALL_COLOR);
+      } else if(maze[y][x] == 0){// Draw dot if not eaten
+        vgafill(x * cellW + cellW/2 - 1, y * cellH + cellH/2 - 1, 2, 2, DOT_COLOR);
+      }
+      else {
+        // Do nothing for other cell types
       }
     }
   }
@@ -194,7 +202,7 @@ draw_game(struct game *g)
   int pcx = g->px * cellW + cellW/2;
   int pcy = g->py * cellH + cellH/2;
   int radius = (cellW < cellH ? cellW : cellH) / 2 - 2;
-  vgaDrawCircle(pcx, pcy, radius, PACMAN_COLOR);
+  vgacircle(pcx, pcy, radius, PACMAN_COLOR);
   
   // Draw ghosts
   int i;
@@ -202,8 +210,12 @@ draw_game(struct game *g)
     int gx = g->ghosts[i][0] * cellW + cellW/2;
     int gy = g->ghosts[i][1] * cellH + cellH/2;
     uchar color = (i == 0) ? GHOST1_COLOR : (i == 1) ? GHOST2_COLOR : GHOST3_COLOR;
-    vgaDrawCircle(gx, gy, radius - 1, color);
+    vgacircle(gx, gy, radius - 1, color);
   }
+
+  for(int i = 0; i < g->score / 10 && i < 100; i++){
+    vgafill(i * 3, 0, 2, 5, PACMAN_COLOR);
+}
 }
 
 int
@@ -218,8 +230,8 @@ game_loop(struct game *g)
   int running = 1;
   int key;
   
-  // Switch to graphics mode
-  vgaMode13();
+  // Switch to graphics mode via syscall
+  vgamode();
   
   while(running){
     draw_game(g);
@@ -228,19 +240,6 @@ game_loop(struct game *g)
       g->win = 1;
       g->game_over = 1;
       break;
-    }
-    
-    if(check_collision(g)){
-      g->lives--;
-      if(g->lives <= 0){
-        g->game_over = 1;
-        break;
-      }
-      g->px = 14;
-      g->py = 14;
-      g->ghosts[0][0] = 12; g->ghosts[0][1] = 8;
-      g->ghosts[1][0] = 14; g->ghosts[1][1] = 8;
-      g->ghosts[2][0] = 13; g->ghosts[2][1] = 9;
     }
     
     // Wait for key
@@ -273,13 +272,32 @@ game_loop(struct game *g)
     }
     
     move_pacman(g);
+    if(check_collision(g)){ //checks if the cross paths
+      goto hit;
+    }
     move_ghost(g, 0);
     move_ghost(g, 1);
     move_ghost(g, 2);
+
+    
+    if(check_collision(g)){
+      hit:
+        g->lives--;
+        if(g->lives <= 0){
+          g->game_over = 1;
+          break;
+        }
+      g->px = 14;
+      g->py = 13;
+      g->ghosts[0][0] = 12; g->ghosts[0][1] = 8;
+      g->ghosts[1][0] = 14; g->ghosts[1][1] = 8;
+      g->ghosts[2][0] = 13; g->ghosts[2][1] = 9;
+    }
+    
   }
   
-  // Switch back to text mode
-  vgaMode3();
+  // Switch back to text mode (vgamode() does this internally when exiting)
+  // For now, just exit - the mode switch happens on next console output
 }
 
 int
@@ -289,6 +307,7 @@ main(int argc, char *argv[])
   
   printf(1, "Starting Pac-Man (VGA Graphics)...\n");
   printf(1, "Use w/a/s/d to move, q to quit\n");
+  printf(1, "You have 3 lives. Good luck!\n");
   printf(1, "Press Enter to start...\n");
   
   char buf[16];

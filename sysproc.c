@@ -96,3 +96,51 @@ addr_t sys_lastkey(void)
   last_key = -1;
   return k;
 }
+
+// VGA syscalls - these run in kernel mode and can access VGA memory
+
+// Switch to VGA graphics mode (mode 13h: 320x200 256-color)
+addr_t sys_vgamode(void)
+{
+  extern void vgaMode13(void);
+  vgaMode13();
+  return 0;
+}
+
+// Test if VGA memory is accessible
+addr_t sys_vgaptest(void)
+{
+  extern int vgaMemTest(void);
+  return vgaMemTest();
+}
+
+// Fill a rectangle in VGA memory
+addr_t sys_vgafill(void)
+{
+  int x, y, w, h, color;
+  extern void vgaKernelFillRect(int x, int y, int w, int h, uchar color);
+  
+  if(argint(0, &x) < 0) return -1;
+  if(argint(1, &y) < 0) return -1;
+  if(argint(2, &w) < 0) return -1;
+  if(argint(3, &h) < 0) return -1;
+  if(argint(4, &color) < 0) return -1;
+  
+  vgaKernelFillRect(x, y, w, h, (uchar)color);
+  return 0;
+}
+
+// Draw a circle in VGA memory
+addr_t sys_vgacircle(void)
+{
+  int cx, cy, r, color;
+  extern void vgaKernelDrawCircle(int cx, int cy, int r, uchar color);
+  
+  if(argint(0, &cx) < 0) return -1;
+  if(argint(1, &cy) < 0) return -1;
+  if(argint(2, &r) < 0) return -1;
+  if(argint(3, &color) < 0) return -1;
+  
+  vgaKernelDrawCircle(cx, cy, r, (uchar)color);
+  return 0;
+}

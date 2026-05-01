@@ -22,3 +22,7 @@
 #define SYS_close  21
 
 #define SYS_lastkey 22
+#define SYS_vgamode 23
+#define SYS_vgaptest 24
+#define SYS_vgafill 25
+#define SYS_vgacircle 26
