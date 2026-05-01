@@ -123,6 +123,15 @@ extern addr_t sys_wait(void);
 extern addr_t sys_write(void);
 extern addr_t sys_uptime(void);
 
+// New syscall for real-time keyboard input
+addr_t sys_lastkey(void);
+
+// VGA syscalls
+addr_t sys_vgamode(void);
+addr_t sys_vgaptest(void);
+addr_t sys_vgafill(void);
+addr_t sys_vgacircle(void);
+
 // PAGEBREAK!
 static addr_t (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -146,6 +155,11 @@ static addr_t (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_lastkey] sys_lastkey,
+[SYS_vgamode] sys_vgamode,
+[SYS_vgaptest] sys_vgaptest,
+[SYS_vgafill] sys_vgafill,
+[SYS_vgacircle] sys_vgacircle,
 };
 
 void

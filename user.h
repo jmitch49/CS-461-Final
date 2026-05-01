@@ -26,6 +26,15 @@ char* sbrk(uint64);
 int sleep(int);
 int uptime(void);
 
+// Real-time keyboard input syscall
+int lastkey(void);
+
+// VGA syscalls
+int vgamode(void);
+int vgaptest(void);
+int vgafill(int x, int y, int w, int h, int color);
+int vgacircle(int cx, int cy, int r, int color);
+
 // ulib.c
 int stat(char*, struct stat*);
 char* strcpy(char*, char*);

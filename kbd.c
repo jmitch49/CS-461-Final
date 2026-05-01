@@ -3,6 +3,9 @@
 #include "defs.h"
 #include "kbd.h"
 
+// Global variable to store last key pressed
+volatile int last_key = -1;
+
 int
 kbdgetc(void)
 {
@@ -46,5 +49,9 @@ kbdgetc(void)
 void
 kbdintr(void)
 {
+  int c = kbdgetc();
+  if (c > 0) {
+    last_key = c;
+  }
   consoleintr(kbdgetc);
 }
